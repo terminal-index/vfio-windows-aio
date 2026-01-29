@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vfio-windows-aio | Windows on Linux</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Google Sans', 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <button id="menu-toggle" aria-label="Toggle navigation">
+            <svg viewBox="0 0 100 80" width="20" height="20" fill="currentColor">
+                <rect width="100" height="10"></rect>
+                <rect y="30" width="100" height="10"></rect>
+                <rect y="60" width="100" height="10"></rect>
+            </svg>
+        </button>
+
+        <aside class="sidebar">
+            <h2 style="display: flex; align-items: center; gap: 0.5rem;">
+                <svg viewBox="0 0 16 16" version="1.1" width="20" height="20" aria-hidden="true" fill="currentColor">
+                    <path
+                        d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836a2.492 2.492 0 0 1 1.499-2.328A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z">
+                    </path>
+                </svg>
+                vfio-windows-aio
+            </h2>
+            <ul class="nav-links">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#prerequisites">Prerequisites</a></li>
+                <li><a href="#setup">Setup</a></li>
+                <li><a href="#windows-install">Windows Installation</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#configuration">Configuration</a></li>
+                <li><a href="#known-issues">Known Issues</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <section class="hero">
+                <h1>Native-Like Windows Experience on Linux</h1>
+                <p>Run Windows inside Linux without rebooting using pure GPU passthrough.</p>
+                <div style="margin-top: 2rem; display: flex; align-items: center; justify-content: center; gap: 1rem;">
+                    <a href="https://github.com/terminal-index/vfio-windows-aio"
+                        style="background: #238636; color: white; padding: 0.8rem 1.5rem; border-radius: 6px; font-weight: 600; text-decoration: none;">View
+                        on GitHub</a>
+                    <a href="https://github.com/sponsors/terminal-index"
+                        style="background: #bf4b8a; color: white; padding: 0.8rem 1.5rem; border-radius: 6px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16"
+                            data-view-component="true" style="fill: currentColor;">
+                            <path
+                                d="m8 14.25.345.666a.75.75 0 0 1-.69 0l-.008-.004-.018-.01a7.152 7.152 0 0 1-.31-.17 22.055 22.055 0 0 1-3.434-2.414C2.045 10.731 0 8.35 0 5.5 0 2.836 2.086 1 4.25 1 5.797 1 7.153 1.802 8 3.02 8.847 1.802 10.203 1 11.75 1 13.914 1 16 2.836 16 5.5c0 2.85-2.045 5.231-3.885 6.818a22.066 22.066 0 0 1-3.744 2.584l-.018.01-.006.003h-.002ZM4.25 2.5c-1.316 0-2.75 1.29-2.75 3 0 2.192 1.605 4.143 3.388 5.68a20.57 20.57 0 0 0 3.112 2.193 20.55 20.55 0 0 0 3.112-2.193c1.783-1.537 3.388-3.488 3.388-5.68 0-1.71-1.434-3-2.75-3-1.055 0-1.995.79-2.476 1.78a.75.75 0 0 1-1.352 0C7.745 3.29 6.805 2.5 5.75 2.5Z">
+                            </path>
+                        </svg>
+                        Sponsor
+                    </a>
+                </div>
+
+                <div class="video-container">
+                    <iframe width="560" height="315" src="https://www.youtube.com/embed/pn0k5uLFft8"
+                        title="YouTube video player" frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen></iframe>
+                </div>
+            </section>
+
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>This is a <strong>2-in-1 system implementation</strong> with a single <code>.sh</code> script that
+                    allows you to run Windows inside Linux without requiring a reboot. It uses GPU passthrough (VFIO)
+                    technology to give the Windows virtual machine direct access to your dedicated GPU, providing
+                    near-native gaming performance while keeping your Linux host system intact.</p>
+                <br>
+                <p><strong>Designed for:</strong> NVIDIA GPU + Intel CPU<br>
+                    <strong>Compatibility:</strong> May also work with AMD GPUs and CPUs with minor adjustments
+                </p>
+
+                <blockquote>
+                    <p
+                        style="border-left: 4px solid var(--primary-color); padding-left: 1rem; color: var(--secondary-color); margin: 1rem 0;">
+                        My testing configuration: Lenovo ThinkPad P53 • Intel i7-9850H • 128GB RAM • NVIDIA Quadro RTX
+                        5000 Max-Q 16GB</p>
+                </blockquote>
+            </section>
+
+            <section id="prerequisites">
+                <h2>Prerequisites</h2>
+                <ul>
+                    <li><strong>Hardware:</strong> IOMMU-capable CPU and motherboard (Intel VT-d or AMD-Vi).</li>
+                    <li><strong>Software:</strong> QEMU/KVM, OVMF, VFIO kernel modules, virtio-win drivers.</li>
+                    <li><strong>BIOS Settings:</strong> Enable IOMMU/VT-d in BIOS.</li>
+                    <li><strong>Kernel Parameters:</strong> Add <code>intel_iommu=on iommu=pt</code> to your bootloader.
+                    </li>
+                </ul>
+            </section>
+
+            <section id="setup">
+                <h2>Setup</h2>
+                <h3>Creating the VM Directory</h3>
+                <p>Create a directory in <code>/opt</code> to store your VM files:</p>
+                <pre><code># Create the directory
+sudo mkdir -p /opt/windowsvm
+
+# Set appropriate permissions
+sudo chown $USER:$USER /opt/windowsvm
+
+# Create the disk image (256G is the size)
+qemu-img create -f qcow2 /opt/windowsvm/emugaming.qcow2 256G
+
+# Create NVRAM file
+cp /usr/share/edk2/x64/OVMF_VARS.4m.fd /opt/windowsvm/nvram.fd
+
+# Download virtio-win drivers
+wget -O /opt/windowsvm/virtio-win.iso https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240/virtio-win.iso
+            </code></pre>
+
+                <h3>Understanding Files</h3>
+                <p><strong>.qcow2</strong> is the virtual disk image. It acts as your C: drive. It grows dynamically up
+                    to the max size.</p>
+                <p><strong>nvram.fd</strong> acts as the UEFI (BIOS) storage for the VM, saving boot settings and Secure
+                    Boot keys.</p>
+
+                <h3>VBIOS Patching (NVIDIA)</h3>
+                <p>Advanced users may need to remove UEFI headers from their GPU VBIOS. Use tools like
+                    <code>nvflash</code> and <code>okteta</code> to dump and patch the ROM. Reference the full README
+                    for step-by-step hex editing instructions.
+                </p>
+            </section>
+
+            <section id="windows-install">
+                <h2>Initial Windows Installation</h2>
+                <p>Use a basic script to install Windows before using the main passthrough script.</p>
+                <pre><code>#!/bin/bash
+VM_DIR="/opt/windowsvm"
+DISK_IMAGE="$VM_DIR/windows11drive.qcow2"
+NVRAM="$VM_DIR/nvram.fd"
+WINDOWS_ISO="/path/to/windows.iso"
+
+qemu-system-x86_64 \
+  -name "windows11" \
+  -machine type=q35,accel=kvm \
+  -enable-kvm \
+  -cpu host \
+  -smp cores=4 \
+  -m 8G \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
+  -drive if=pflash,format=raw,file=$NVRAM \
+  -drive if=none,id=disk0,format=qcow2,file=$DISK_IMAGE \
+  -device virtio-blk-pci,drive=disk0 \
+  -drive file=$WINDOWS_ISO,media=cdrom,index=0 \
+  -drive file=/opt/windowsvm/virtio-win.iso,media=cdrom,index=1 \
+  -net nic,model=virtio \
+  -net user \
+  -vga qxl \
+  -device qemu-xhci \
+  -device usb-tablet</code></pre>
+                <p><strong>Important:</strong> During installation, you must load drivers from the virtio-win ISO to see
+                    your hard drive.</p>
+            </section>
+
+            <section id="how-it-works">
+                <h2>What the Script Does</h2>
+                <ol>
+                    <li><strong>Stops Display Manager:</strong> Kills SDDM/GDM/Hyprland to free the GPU.</li>
+                    <li><strong>Unbinds NVIDIA Drivers:</strong> Removes `nvidia` kernel modules so the host releases
+                        the card.</li>
+                    <li><strong>Loads VFIO:</strong> Binds the GPU components (Video, Audio, USB, Serial) to `vfio-pci`.
+                    </li>
+                    <li><strong>Launches QEMU:</strong> Starts the VM with the passed-through GPU.</li>
+                    <li><strong>Returns to Linux:</strong> When VM shuts down, it reloads NVIDIA drivers and restarts
+                        the display manager.</li>
+                </ol>
+            </section>
+
+            <section id="configuration">
+                <h2>QEMU Configuration Explained</h2>
+                <p>The script uses several flags to optimize performance and hide virtualization:</p>
+                <ul>
+                    <li><code>-machine type=q35,accel=kvm</code>: Uses modern chipset emulation and KVM hardware
+                        acceleration.</li>
+                    <li><code>-cpu host...</code>: Passes through host CPU features.</li>
+                    <li><code>hv_vendor_id=NV43FIX</code>: <strong>Critical for NVIDIA</strong>. Spoofs vendor ID to
+                        prevent Error 43 where drivers refuse to load in a VM.</li>
+                    <li><code>-device vfio-pci...</code>: The actual flags that attach the physical GPU to the virtual
+                        machine.</li>
+                </ul>
+            </section>
+
+            <section id="known-issues">
+                <h2>Known Issues</h2>
+                <h3>NVIDIA Driver Recovery</h3>
+                <p>After shutting down the VM and returning to Linux, the NVIDIA driver might not fully recover until a
+                    reboot. This is a common issue with proprietary drivers and dynamic unbinding.</p>
+
+                <h3>Low Volume</h3>
+                <p>Audio from the VM might be quiet. <strong>Fix:</strong> Set your Linux host volume to 100% before
+                    starting the VM.</p>
+            </section>
+
+            <footer
+                style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border-color); color: var(--secondary-color); font-size: 0.9rem;">
+                <p>Made with 🤎 in 🇵🇱 by Terminal-Index.</p>
+            </footer>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
