@@ -102,9 +102,22 @@
                     <li><strong>Hardware:</strong> IOMMU-capable CPU and motherboard (Intel VT-d or AMD-Vi).</li>
                     <li><strong>Software:</strong> QEMU/KVM, OVMF, VFIO kernel modules, virtio-win drivers.</li>
                     <li><strong>BIOS Settings:</strong> Enable IOMMU/VT-d in BIOS.</li>
-                    <li><strong>Kernel Parameters:</strong> Add <code>intel_iommu=on iommu=pt</code> to your bootloader.
+                    <li><strong>Kernel Parameters:</strong> Add <code>intel_iommu=on iommu=pt*</code> or
+                        <code>amd_iommu=on iommu=pt*</code>to your bootloader.
                     </li>
                 </ul>
+                <div
+                    style="border-left: 4px solid #e6a700; background-color: rgba(230, 167, 0, 0.1); padding: 1rem; margin: 1rem 0;">
+                    <p style="margin-bottom: 0.5rem;"><strong>⚠️ *Security Note:</strong> The <code>iommu=pt</code>
+                        parameter is recommended for maximum gaming performance as it minimizes overhead and latency.
+                        However, it effectively disables DMA protection for passed-through devices.</p>
+                    <p style="margin-bottom: 0.5rem;">As noted by the community, forcing the IOMMU to passthrough mode
+                        means that if a malicious device is flashed with rogue firmware, it could potentially retain
+                        access to host memory even after the VM is shut down.</p>
+                    <p>If you prioritize strict security over marginal performance gains, or do not fully trust your
+                        devices/firmware, you may omit <code>iommu=pt</code> and simply use <code>intel_iommu=on</code>
+                        or <code>amd_iommu=on</code>.</p>
+                </div>
             </section>
 
             <section id="setup">
