@@ -1,11 +1,11 @@
 :root {
-    --bg-color: #0d1117;
-    --text-color: #c9d1d9;
-    --heading-color: #ffffff;
-    --primary-color: #58a6ff;
-    --secondary-color: #8b949e;
-    --code-bg: #161b22;
-    --border-color: #30363d;
+    --bg-color: #504945;
+    --text-color: #ebdbb2;
+    --heading-color: #ebdbb2;
+    --primary-color: #d5c4a1;
+    --secondary-color: #a89984;
+    --code-bg: #3c3836;
+    --border-color: #7c6f64;
     --sidebar-width: 300px;
     --header-height: 60px;
 }
@@ -76,7 +76,7 @@ a:hover {
     top: 0;
     height: 100vh;
     overflow-y: auto;
-    background-color: #010409;
+    background-color: #3c3836;
     border-right: 1px solid var(--border-color);
     padding: 2rem;
     flex-shrink: 0;
@@ -127,7 +127,7 @@ a:hover {
 
 .hero h1 {
     font-size: 3.5rem;
-    background: linear-gradient(90deg, #58a6ff, #d2a8ff);
+    background: linear-gradient(90deg, #d5c4a1, #a89984);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -157,8 +157,8 @@ code {
 
 p code,
 li code {
-    background-color: tbody;
-    background-color: rgba(110, 118, 129, 0.4);
+
+    background-color: rgba(60, 56, 54, 0.5);
     padding: 0.2em 0.4em;
     border-radius: 6px;
 }
