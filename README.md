@@ -36,11 +36,12 @@ This is a **2-in-1 system implementation** with a single `.sh` script that allow
 ## Overview
 
 Main script (`start_vm.sh`) automates the process of:
-1. Shutting down your Linux display manager (SDDM, GDM, or Hyprland*)
+1. Auto-detecting and stopping any active display manager (SDDM, GDM, LightDM, LY, greetd, etc.)
 2. Unbinding the NVIDIA GPU from Linux drivers
 3. Binding the GPU to VFIO drivers for passthrough
 4. Launching a Windows virtual machine with direct GPU access
-5. Returning control to Linux after shutdown
+5. NEW: Fully restoring the GPU, USB devices, and display manager after VM shutdown
+6. NEW: Logging the entire session to a timestamped file
 
 The result is a seamless transition between Linux and Windows without rebooting your computer.
 
@@ -53,6 +54,7 @@ The result is a seamless transition between Linux and Windows without rebooting 
   - VFIO kernel modules
   - virtio-win drivers ISO
 - **BIOS Settings**: Enable IOMMU/VT-d/AMD-Vi in your BIOS
+- **Windows Settings after installation**: Disable **Fast Startup** in Windows Power Options (see [Fast Startup](#-3-fast-startup-must-be-disabled) below)
 - **Kernel Parameters**: Add `intel_iommu=on iommu=pt` (Intel CPU) or `amd_iommu=on iommu=pt` (AMD CPU) to your bootloader
   > **⚠️ Security Note**: The `iommu=pt` parameter is recommended for maximum gaming performance as it minimizes overhead and latency. However, it effectively disables DMA protection for passed-through devices.
   >
@@ -293,10 +295,10 @@ sudo ./install_windows.sh
 
 ### Step 1: Stopping the Display Manager
 
-The script first identifies and stops your display manager (SDDM or GDM) or Hyprland compositor:
+The script auto-detects your active display manager by reading the `/etc/systemd/system/display-manager.service` symlink. It supports any systemd-managed DM (SDDM, GDM, LightDM, LXDM, LY, greetd, etc.) and falls back to probing common service names if the symlink is not present.
 
 ```bash
-systemctl stop sddm  # or gdm, there's an automatic DM detection.
+systemctl stop <detected-dm>
 ```
 
 This is necessary because Linux must release control of the GPU before it can be passed to the VM.
@@ -339,14 +341,28 @@ The script launches QEMU with the Windows VM, passing through the GPU and other 
 
 ### Step 5: Returning to Linux
 
-After the VM shuts down, the script automatically:
-1. Reloads NVIDIA kernel modules
-2. Unbinds devices from VFIO
-3. Restores devices to their original drivers (at least it tries)
-4. Restores the virtual console
-5. Restarts the display manager
+After the VM shuts down and QEMU exits, the script automatically:
+1. Unbinds all GPU devices from `vfio-pci` and removes their VFIO IDs
+2. Unloads VFIO kernel modules (`vfio_pci`, `vfio_iommu_type1`, `vfio`)
+3. Clears `driver_override` and triggers `drivers_probe` for each device
+4. Rescans the PCI bus
+5. Reloads NVIDIA kernel modules (`nvidia_drm`, `nvidia_modeset`, `nvidia_uvm`, `nvidia`, `i2c_nvidia_gpu`)
+6. Restores the virtual console and EFI framebuffer
+7. Wakes the GPU with `nvidia-smi`
+8. Rebinds all USB (xHCI) controllers so passthrough devices work again without replugging
+9. Restarts the display manager
 
-> **Note**: See [Known Issues](#known-issues) for limitations.
+> **Note**: For QEMU to detect the Windows shutdown properly, **Fast Startup must be disabled** in Windows. See [Known Issues](#-3-fast-startup-must-be-disabled).
+
+### Logging
+
+Every run of `start_vm.sh` creates a timestamped log file in the script's directory:
+
+```
+vfio-windows-aio-2026-02-14_23-45-40.log
+```
+
+The setup and teardown phases are logged automatically. You can review the full session afterwards for debugging.
 
 ## QEMU Configuration Explained
 
@@ -480,24 +496,41 @@ No virtual display is used because the VM outputs directly to the physical monit
 
 ## Known Issues
 
-### ⚠️ 1. NVIDIA Driver Recovery After VM Shutdown
+> **✅ Fixed** — This issue has been resolved. The script now correctly unbinds VFIO before loading NVIDIA modules, rescans the PCI bus, and rebinds USB controllers.
 
-**Issue**: After shutting down the Windows VM, the system successfully returns to Linux, but the NVIDIA GPU cannot be fully restored until the computer is rebooted.
+### ~~⚠️ 1. NVIDIA Driver Recovery After VM Shutdown~~
 
-**Symptoms**:
-- Linux desktop may run on integrated graphics or software rendering
-- `nvidia-smi` may show errors or no GPU detected
-- Display manager restarts but GPU acceleration is unavailable
+~~**Issue**: After shutting down the Windows VM, the system successfully returns to Linux, but the NVIDIA GPU cannot be fully restored until the computer is rebooted.~~
 
-**Workaround**: Reboot the system to fully restore NVIDIA functionality in Linux.
+~~**Symptoms**:~~
+- ~~Linux desktop may run on integrated graphics or software rendering~~
+- ~~`nvidia-smi` may show errors or no GPU detected~~
+- ~~Display manager restarts but GPU acceleration is unavailable~~
 
-**Root Cause**: The NVIDIA proprietary driver has difficulty re-initializing the GPU after it has been reset from VFIO passthrough. This is a known limitation of the current driver architecture.
+~~**Workaround**: Reboot the system to fully restore NVIDIA functionality in Linux.~~
 
-**Future Solutions**:
-- Fix the script's driver reloading
-- Use the open-source `nouveau` driver for Linux (limited gaming performance)?
-- Wait for better NVIDIA driver support for dynamic rebinding
-- Consider using AMD GPUs, which generally have better VFIO support (and anything related to Linux support. We [love](https://geekpedia.pl/wp-content/uploads/2024/10/linus_torvalds_krytykuje_technologicznych_gigantow_1.webp) you NVIDIA!)
+~~**Root Cause**: The NVIDIA proprietary driver has difficulty re-initializing the GPU after it has been reset from VFIO passthrough. This is a known limitation of the current driver architecture.~~
+
+~~**Future Solutions**:~~
+- ~~Fix the script's driver reloading~~
+- ~~Use the open-source `nouveau` driver for Linux (limited gaming performance)?~~
+- ~~Wait for better NVIDIA driver support for dynamic rebinding~~
+- ~~Consider using AMD GPUs, which generally have better VFIO support (and anything related to Linux support. We [love](https://geekpedia.pl/wp-content/uploads/2024/10/linus_torvalds_krytykuje_technologicznych_gigantow_1.webp) you NVIDIA!)~~
+
+### ⚠️ 3. Fast Startup Must Be Disabled
+
+**Issue**: QEMU does not detect the Windows VM shutdown if Fast Startup is enabled, causing the QEMU process to hang indefinitely after Windows "shuts down".
+
+**Root Cause**: Windows Fast Startup performs a hybrid hibernate instead of a real ACPI shutdown. QEMU never receives the power-off signal, so it keeps running and the script cannot proceed with GPU teardown.
+
+**Fix**: Disable Fast Startup in Windows:
+1. Open **Control Panel** → **Power Options**
+2. Click **Choose what the power buttons do**
+3. Click **Change settings that are currently unavailable**
+4. Uncheck **Turn on fast startup (recommended)**
+5. Click **Save changes**
+
+After disabling Fast Startup, Windows will perform a proper ACPI shutdown and QEMU will exit cleanly, allowing the script to automatically restore your Linux desktop.
 
 ### ⚠️ 2. Audio Volume Too Low in Windows VM
 
