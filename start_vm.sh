@@ -1,9 +1,11 @@
 #!/bin/bash
-# Configuration and details are described on the main repository.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_FILE="$SCRIPT_DIR/vfio-windows-aio-$(date +%Y-%m-%d_%H-%M-%S).log"
 
 VM_DIR="/opt/windowsvm"
-VBIOS="$VM_DIR/vbios.rom" 
-DISK_IMAGE="$VM_DIR/windows11drive.qcow2" 
+VBIOS="$VM_DIR/vbios.rom"
+DISK_IMAGE="$VM_DIR/windows11drive.qcow2"
 NVRAM="$VM_DIR/nvram.fd"
 
 GPU_VIDEO="0000:01:00.0"
@@ -11,18 +13,24 @@ GPU_AUDIO="0000:01:00.1"
 GPU_USB="0000:01:00.2"
 GPU_SERIAL="0000:01:00.3"
 
+{
 
 echo "Stopping display manager..."
-if systemctl is-active --quiet sddm; then
-    DM="sddm"
-    systemctl stop sddm
-elif systemctl is-active --quiet gdm; then
-    DM="gdm"
-    systemctl stop gdm
+DM_SERVICE=$(basename "$(readlink -f /etc/systemd/system/display-manager.service)" 2>/dev/null)
+if [ -n "$DM_SERVICE" ] && systemctl is-active --quiet "$DM_SERVICE"; then
+    DM="$DM_SERVICE"
+    systemctl stop "$DM_SERVICE"
 else
-    killall Hyprland
+    for dm in sddm gdm lightdm lxdm ly greetd; do
+        if systemctl is-active --quiet "$dm"; then
+            DM="$dm"
+            systemctl stop "$dm"
+            break
+        fi
+    done
 fi
 sleep 2
+
 echo "Unloading NVIDIA drivers..."
 
 echo 0 > /sys/class/vtconsole/vtcon0/bind
@@ -32,9 +40,7 @@ if [ -e "/sys/devices/platform/efi-framebuffer.0/driver" ]; then
     echo "efi-framebuffer.0" > /sys/devices/platform/efi-framebuffer.0/driver/unbind
 fi
 
-
 modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia i2c_nvidia_gpu
-
 
 echo "Loading VFIO..."
 modprobe vfio_pci vfio_iommu_type1
@@ -51,6 +57,8 @@ done
 sleep 1
 
 echo "Launching Windows..."
+
+} >> "$LOG_FILE" 2>&1
 
 qemu-system-x86_64 \
   -name "win11-gaming" \
@@ -93,20 +101,11 @@ qemu-system-x86_64 \
   -parallel none \
   -monitor stdio
 
+{
 
 echo "VM Powered off. Going back to Linux..."
 
-# 1. Load NVIDIA modules first, to be ready to accept the device
-echo "Loading NVIDIA modules..."
-modprobe nvidia_drm
-modprobe nvidia_modeset
-modprobe nvidia_uvm
-modprobe nvidia
-modprobe i2c_nvidia_gpu
-
-# 2. Device loop cleaning
-echo "Unloading VFIO and restoring drivers..."
-
+echo "Unbinding GPU from VFIO..."
 for dev in "$GPU_VIDEO" "$GPU_AUDIO" "$GPU_USB" "$GPU_SERIAL"; do
     vendor=$(cat /sys/bus/pci/devices/$dev/vendor)
     device=$(cat /sys/bus/pci/devices/$dev/device)
@@ -116,10 +115,27 @@ for dev in "$GPU_VIDEO" "$GPU_AUDIO" "$GPU_USB" "$GPU_SERIAL"; do
     if [ -e /sys/bus/pci/devices/$dev/driver/unbind ]; then
         echo "$dev" > /sys/bus/pci/devices/$dev/driver/unbind
     fi
+done
 
+echo "Unloading VFIO modules..."
+modprobe -r vfio_pci vfio_iommu_type1 vfio
+
+echo "Reprobing PCI devices..."
+for dev in "$GPU_VIDEO" "$GPU_AUDIO" "$GPU_USB" "$GPU_SERIAL"; do
     echo "" > /sys/bus/pci/devices/$dev/driver_override
     echo "$dev" > /sys/bus/pci/drivers_probe
 done
+
+echo "Rescanning PCI bus..."
+echo 1 > /sys/bus/pci/rescan
+sleep 1
+
+echo "Loading NVIDIA modules..."
+modprobe nvidia_drm
+modprobe nvidia_modeset
+modprobe nvidia_uvm
+modprobe nvidia
+modprobe i2c_nvidia_gpu
 
 echo "Restoring console..."
 if [ -e "/sys/bus/platform/drivers/efi-framebuffer/bind" ]; then
@@ -132,9 +148,20 @@ echo "Waking up GPU..."
 nvidia-smi > /dev/null 2>&1
 sleep 1
 
+echo "Rebinding USB controllers..."
+for xhci in /sys/bus/pci/drivers/xhci_hcd/*; do
+    dev=$(basename "$xhci")
+    [[ "$dev" =~ ^[0-9] ]] || continue
+    echo "$dev" > /sys/bus/pci/drivers/xhci_hcd/unbind 2>/dev/null
+    echo "$dev" > /sys/bus/pci/drivers/xhci_hcd/bind 2>/dev/null
+done
+sleep 1
+
 if [ -n "$DM" ]; then
     echo "Restarting $DM..."
-    systemctl restart "$DM" --now
+    systemctl start "$DM"
 else
-    echo "Display manager not present, returning to tty."
+    echo "No display manager detected, returning to tty."
 fi
+
+} >> "$LOG_FILE" 2>&1
