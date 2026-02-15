@@ -102,8 +102,10 @@
                     <li><strong>Hardware:</strong> IOMMU-capable CPU and motherboard (Intel VT-d or AMD-Vi).</li>
                     <li><strong>Software:</strong> QEMU/KVM, OVMF, VFIO kernel modules, virtio-win drivers.</li>
                     <li><strong>BIOS Settings:</strong> Enable IOMMU/VT-d in BIOS.</li>
+                    <li><strong>Windows Settings:</strong> Disable <strong>Fast Startup</strong> in Windows Power
+                        Options (see <a href="#known-issues">Known Issues</a>).</li>
                     <li><strong>Kernel Parameters:</strong> Add <code>intel_iommu=on iommu=pt*</code> or
-                        <code>amd_iommu=on iommu=pt*</code>to your bootloader.
+                        <code>amd_iommu=on iommu=pt*</code> to your bootloader.
                     </li>
                 </ul>
                 <div
@@ -187,14 +189,26 @@ qemu-system-x86_64 \
             <section id="how-it-works">
                 <h2>What the Script Does</h2>
                 <ol>
-                    <li><strong>Stops Display Manager:</strong> Kills SDDM/GDM/Hyprland to free the GPU.</li>
-                    <li><strong>Unbinds NVIDIA Drivers:</strong> Removes `nvidia` kernel modules so the host releases
-                        the card.</li>
-                    <li><strong>Loads VFIO:</strong> Binds the GPU components (Video, Audio, USB, Serial) to `vfio-pci`.
+                    <li><strong>Auto-Detects &amp; Stops Display Manager:</strong> Reads the
+                        <code>/etc/systemd/system/display-manager.service</code> symlink to detect any active DM (SDDM,
+                        GDM, LightDM, LY, greetd, etc.) and stops it to free the GPU.</li>
+                    <li><strong>Unbinds NVIDIA Drivers:</strong> Unbinds virtual consoles and removes all NVIDIA kernel
+                        modules so the host fully releases the GPU.</li>
+                    <li><strong>Loads VFIO:</strong> Binds the GPU components (Video, Audio, USB, Serial) to
+                        <code>vfio-pci</code> for passthrough.</li>
+                    <li><strong>Launches QEMU:</strong> Starts the VM with the passed-through GPU and all configured USB
+                        devices.</li>
+                    <li><strong>Returns to Linux:</strong> After the VM shuts down, the script automatically:
+                        <ul>
+                            <li>Unbinds all GPU devices from VFIO and unloads VFIO modules</li>
+                            <li>Reprobes PCI devices and rescans the PCI bus</li>
+                            <li>Reloads NVIDIA kernel modules and wakes the GPU</li>
+                            <li>Rebinds USB (xHCI) controllers so passthrough devices work without replugging</li>
+                            <li>Restarts the display manager</li>
+                        </ul>
                     </li>
-                    <li><strong>Launches QEMU:</strong> Starts the VM with the passed-through GPU.</li>
-                    <li><strong>Returns to Linux:</strong> When VM shuts down, it reloads NVIDIA drivers and restarts
-                        the display manager.</li>
+                    <li><strong>Session Logging:</strong> Every run creates a timestamped log file
+                        (<code>vfio-windows-aio-YYYY-MM-DD_HH-MM-SS.log</code>) for debugging.</li>
                 </ol>
             </section>
 
@@ -214,11 +228,28 @@ qemu-system-x86_64 \
 
             <section id="known-issues">
                 <h2>Known Issues</h2>
-                <h3>NVIDIA Driver Recovery</h3>
-                <p>After shutting down the VM and returning to Linux, the NVIDIA driver might not fully recover until a
-                    reboot. This is a common issue with proprietary drivers and dynamic unbinding.</p>
 
-                <h3>Low Volume</h3>
+                <div
+                    style="border-left: 4px solid #238636; background-color: rgba(35, 134, 54, 0.1); padding: 1rem; margin: 1rem 0;">
+                    <p><strong>✅ Fixed — NVIDIA Driver Recovery:</strong> The script now correctly unbinds VFIO before
+                        loading NVIDIA modules, rescans the PCI bus, and rebinds USB controllers. The GPU fully restores
+                        after VM shutdown without a reboot.</p>
+                </div>
+
+                <h3>⚠️ Fast Startup Must Be Disabled</h3>
+                <p>QEMU will not detect a Windows VM shutdown if <strong>Fast Startup</strong> is enabled. Windows Fast
+                    Startup performs a hybrid hibernate instead of a real ACPI shutdown, so QEMU never receives the
+                    power-off signal.</p>
+                <p><strong>Fix:</strong></p>
+                <ol>
+                    <li>Open <strong>Control Panel</strong> → <strong>Power Options</strong></li>
+                    <li>Click <strong>Choose what the power buttons do</strong></li>
+                    <li>Click <strong>Change settings that are currently unavailable</strong></li>
+                    <li>Uncheck <strong>Turn on fast startup (recommended)</strong></li>
+                    <li>Click <strong>Save changes</strong></li>
+                </ol>
+
+                <h3>⚠️ Low Volume</h3>
                 <p>Audio from the VM might be quiet. <strong>Fix:</strong> Set your Linux host volume to 100% before
                     starting the VM.</p>
             </section>
